@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Untukmu yang Spesial ❤️</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    /* Sedikit gaya untuk overlay "tap to play" */
+    #tap-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(2,6,23,0.35);
+      color: white;
+      font-size: 1.1rem;
+      z-index: 60;
+      backdrop-filter: blur(4px);
+    }
+    #tap-overlay.hidden { display: none; }
+    /* agar konten tidak tergeser saat overlay */
+    body.noscroll { overflow: hidden; }
+  </style>
+</head>
+<body class="bg-blue-50 text-gray-800">
+
+  <!-- Header -->
+  <header class="bg-blue-600 text-white text-center py-6 shadow-lg">
+    <h1 class="text-3xl md:text-4xl font-bold">Selamat Ulang Tahun, Mylove 🎉❤️</h1>
+    <p class="mt-2 text-lg">Sebuah hadiah kecil dari hati untukmu</p>
+  </header>
+
+  <!-- invisible video trick + audio element -->
+  <video id="bg-video" playsinline autoplay loop muted style="display:none;"></video>
+
+  <!-- fallback audio element (actual audio source) -->
+  <audio id="bg-audio" preload="auto" loop>
+    <source src="{{ url_for('static', filename='media/music.mp3') }}" type="audio/mpeg">
+    Browser kamu tidak mendukung audio.
+  </audio>
+
+  <!-- Konten utama -->
+  <main class="max-w-5xl mx-auto py-10 px-4">
+    <div class="space-y-10">
+      {% for p in photos %}
+      <div class="flex flex-col md:flex-row items-center bg-white rounded-2xl shadow-lg overflow-hidden transition transform hover:scale-105">
+        
+        {% if p.video %}
+          <video controls autoplay loop muted class="w-full md:w-1/2 h-72 object-cover">
+            <source src="{{ url_for('static', filename=p.video) }}" type="video/mp4">
+            Browser kamu tidak mendukung video.
+          </video>
+        {% else %}
+          <img src="{{ url_for('static', filename=p.img) }}" alt="Foto" class="w-full md:w-1/2 h-72 object-cover">
+        {% endif %}
+        
+        <div class="p-6 md:w-1/2">
+          <p class="text-base md:text-lg leading-relaxed">{{ p.message }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </main>
+
+  <footer class="bg-blue-600 text-white text-center py-4 mt-10">
+    <p>Dibuat dengan penuh cinta ❤️ oleh pacarmu</p>
+    <p class="italic">*maaf kalau alay hehe 🙏</p>
+  </footer>
+
+  <!-- Overlay kecil yang muncul HANYA jika autoplay gagal; akan hilang otomatis bila audio berhasil -->
+  <div id="tap-overlay" class="hidden">
+    <div class="text-center p-6">
+      <p class="mb-4 text-xl font-semibold">Sentuh layar untuk memutar musik 🎶</p>
+      <button id="tap-play" class="bg-white text-blue-600 px-5 py-2 rounded-lg font-medium shadow">Putar Lagu</button>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const audio = document.getElementById('bg-audio');
+      const video = document.getElementById('bg-video');
+      const overlay = document.getElementById('tap-overlay');
+      const tapBtn = document.getElementById('tap-play');
+
+      async function fetchAndPlayAudio() {
+        try {
+          audio.muted = false;
+          audio.volume = 1.0;
+          await audio.play();
+          hideOverlay();
+          return true;
+        } catch (err) {
+          console.warn('audio.play() gagal:', err);
+        }
+
+        try {
+          const ac = new (window.AudioContext || window.webkitAudioContext)();
+          if (ac.state === 'suspended') {
+            try { await ac.resume(); } catch(e) {}
+          }
+          const resp = await fetch('{{ url_for("static", filename="media/music.mp3") }}');
+          const arrbuf = await resp.arrayBuffer();
+          const decoded = await ac.decodeAudioData(arrbuf);
+          const src = ac.createBufferSource();
+          src.buffer = decoded;
+          src.connect(ac.destination);
+          src.loop = true;
+          src.start(0);
+          hideOverlay();
+          return true;
+        } catch (err) {
+          console.warn('WebAudio fallback gagal:', err);
+        }
+
+        showOverlay();
+        return false;
+      }
+
+      function showOverlay(){
+        overlay.classList.remove('hidden');
+        document.body.classList.add('noscroll');
+      }
+      function hideOverlay(){
+        overlay.classList.add('hidden');
+        document.body.classList.remove('noscroll');
+      }
+
+      fetchAndPlayAudio();
+
+      tapBtn.addEventListener('click', async () => {
+        try {
+          audio.muted = false;
+          audio.volume = 1.0;
+          await audio.play();
+          hideOverlay();
+        } catch (err) {
+          try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            await ac.resume();
+            const resp = await fetch('{{ url_for("static", filename="media/music.mp3") }}');
+            const arrbuf = await resp.arrayBuffer();
+            const decoded = await ac.decodeAudioData(arrbuf);
+            const src = ac.createBufferSource();
+            src.buffer = decoded;
+            src.connect(ac.destination);
+            src.loop = true;
+            src.start(0);
+            hideOverlay();
+          } catch(e) {
+            alert('Maaf, browser tidak mengizinkan pemutaran otomatis.');
+          }
+        }
+      });
+
+      ['click','touchstart','keydown','scroll'].forEach(evt => {
+        window.addEventListener(evt, async function once() {
+          window.removeEventListener(evt, once);
+          try {
+            await audio.play();
+            hideOverlay();
+          } catch(e) {}
+        }, {passive:true});
+      });
+
+    })();
+  </script>
+</body>
+</html>
